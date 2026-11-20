@@ -41,7 +41,7 @@ ${log}
 // ---------- HANDOFF.md (rebuild guide + full source) ----------
 const files = ['web/index.html', 'web/data.js', 'web/firebase-config.js', 'web/manifest.webmanifest',
   'firestore.rules', 'firestore.indexes.json', 'firebase.json', '.github/workflows/pages.yml',
-  'scripts/setup.sh', 'scripts/deploy.sh', 'scripts/dev.sh', 'scripts/build-docs.mjs'];
+  'scripts/setup.sh', 'scripts/deploy.sh', 'scripts/dev.sh', 'scripts/check-auth.sh', 'scripts/build-docs.mjs'];
 const lang = (f) => ({ html: 'html', js: 'js', mjs: 'js', json: 'json', webmanifest: 'json', rules: 'js', yml: 'yaml', sh: 'bash' })[f.split('.').pop()] || '';
 const intro = read('scripts/handoff-intro.md')
   .replaceAll('{{VERSION}}', version)

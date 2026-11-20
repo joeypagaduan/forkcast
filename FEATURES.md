@@ -1,6 +1,8 @@
 # Forkcast: Features and Updates
 
-**Current version: 2.0** · Created by whathappened
+**Current version: 2.0.1** · Created by whathappened
+
+Open it: https://joeypagaduan.github.io/forkcast/
 
 Can't decide what to eat? Everyone swipes through food ideas, and Forkcast shows what you all said yes to.
 
@@ -16,6 +18,12 @@ Can't decide what to eat? Everyone swipes through food ideas, and Forkcast shows
 - **No account needed.** Add it to your home screen on iPhone, iPad, or Android.
 
 ## Version log
+
+### 2.0.1 (November 20, 2026)
+- Profile photos: take a selfie or upload one in Settings > Profile; it shows in your groups and results
+- Full screen on phones and tablets, and it stays that way (change it in Settings > Look)
+- Bigger, bolder back arrow
+- Clearer message when Firebase sign-in isn't set up yet
 
 ### 2.0 (November 19, 2026)
 - Rebuilt on Firebase: everything loads faster and works through spotty connections

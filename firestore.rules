@@ -80,7 +80,19 @@ service cloud.firestore {
       }
     }
 
-    // Your own profile: name and which sessions you archived.
+    // Profile photos: small JPEGs. Anyone signed in can view one if they know the person's id
+    // (ids are only visible inside groups). Only you can change or remove yours.
+    match /avatars/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && uid == me()
+        && request.resource.data.photo is string
+        && request.resource.data.photo.size() < 140000
+        && request.resource.data.photo.matches('data:image/jpeg;base64,[A-Za-z0-9+/=]+')
+        && request.resource.data.updatedAt is int;
+      allow delete: if signedIn() && uid == me();
+    }
+
+    // Your own profile: name, photo version, and which sessions you archived.
     match /users/{uid} {
       allow read, write: if signedIn() && uid == me();
     }

@@ -8,13 +8,15 @@
  *   codes/{CODE}            groupId, createdBy            (invite codes; readable one at a time, never listed)
  *   sessions/{sessionId}    groupId, date, meal, snackNum, label, createdBy, createdAt, submittedBy[]
  *   sessions/{id}/submissions/{uid}   name, likes[], dislikes[], submittedAt
- *   users/{uid}             name, archives{sessionId: 'archived'|'active'}
+ *   users/{uid}             name, photoAt, archives{sessionId: 'archived'|'active'}
+ *   avatars/{uid}           photo (small JPEG data URL, ~20 KB), updatedAt
+ *                           members{uid:{..., photoAt}} tells others when to refetch a photo
  */
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  doc, collection, getDoc, getDocs, setDoc, updateDoc, writeBatch, query, where, orderBy, limit,
+  doc, collection, getDoc, getDocs, setDoc, updateDoc, deleteDoc, writeBatch, query, where, orderBy, limit,
   arrayUnion, arrayRemove, deleteField, onSnapshot, getCountFromServer
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 
@@ -65,7 +67,10 @@ function pubSession(id, s) {
 }
 function membersOf(g) {
   const m = g.members || {};
-  return Object.keys(m).map(function (uid) { return { userId: uid, name: (m[uid] && m[uid].name) || 'Guest', joinedAt: (m[uid] && m[uid].joinedAt) || '' }; })
+  return Object.keys(m).map(function (uid) {
+    const x = m[uid] || {};
+    return { userId: uid, name: x.name || 'Guest', joinedAt: x.joinedAt || '', photoAt: x.photoAt || 0 };
+  })
     .sort(function (a, b) { return a.joinedAt.localeCompare(b.joinedAt); });
 }
 function sortSessions(a, b) {
@@ -75,6 +80,14 @@ function isArchived(s, arch) {
   if (arch[s.id]) return arch[s.id] === 'archived';
   const t = Date.parse(s.createdAt);
   return !isNaN(t) && (Date.now() - t) > AUTO_ARCHIVE_MS;
+}
+async function myPhotoAt(uid) {
+  try { const s = await getDoc(doc(db, 'users', uid)); return (s.exists() && s.data().photoAt) || 0; } catch (e) { return 0; }
+}
+function memberEntry(name, photoAt) {
+  const e = { name: name, joinedAt: nowIso() };
+  if (photoAt) e.photoAt = photoAt;
+  return e;
 }
 async function myArchives(uid) {
   const snap = await getDoc(doc(db, 'users', uid));
@@ -131,11 +144,16 @@ function computeResults(uid, s, g, subsDocs) {
     .sort(function (a, b) { return b.count - a.count; });
   const done = {};
   subs.forEach(function (x) { done[x.userId] = true; });
+  const photoOf = {};
+  members.forEach(function (m) { photoOf[m.userId] = m.photoAt; });
+  const waiting = members.filter(function (m) { return !done[m.userId]; });
   return {
     session: pubSession(s.id, s),
     group: pubGroup(s.groupId, g),
     submitters: subs.map(function (x) { return x.name; }),
-    pending: members.filter(function (m) { return !done[m.userId]; }).map(function (m) { return m.name; }),
+    pending: waiting.map(function (m) { return m.name; }),
+    people: subs.map(function (x) { return { userId: x.userId, name: x.name, photoAt: photoOf[x.userId] || 0, done: true }; })
+      .concat(waiting.map(function (m) { return { userId: m.userId, name: m.name, photoAt: m.photoAt, done: false }; })),
     matches: tally.filter(function (t) { return t.count === subs.length; }).map(function (t) { return t.id; }),
     tally: tally,
     myLikes: mine.likes
@@ -165,12 +183,13 @@ export const DB = {
   async createGroup(uid, name, p) {
     const groupName = String(p.groupName || '').replace(/[<>]/g, '').trim().slice(0, 40);
     if (!groupName) throw new Error('Give your group a name.');
+    const photoAt = await myPhotoAt(uid);
     for (let attempt = 0; attempt < 5; attempt++) {
       const ref = doc(collection(db, 'groups'));
       const code = newCode();
       const g = {
         name: groupName, code: code, createdBy: uid, createdAt: nowIso(), isSolo: false,
-        memberIds: [uid], members: { [uid]: { name: name, joinedAt: nowIso() } }
+        memberIds: [uid], members: { [uid]: memberEntry(name, photoAt) }
       };
       const batch = writeBatch(db);
       batch.set(ref, g);
@@ -193,7 +212,7 @@ export const DB = {
     if (already) {
       if (((already.members || {})[uid] || {}).name !== name) await updateDoc(ref, { ['members.' + uid + '.name']: name });
     } else {
-      await updateDoc(ref, { memberIds: arrayUnion(uid), ['members.' + uid]: { name: name, joinedAt: nowIso() } });
+      await updateDoc(ref, { memberIds: arrayUnion(uid), ['members.' + uid]: memberEntry(name, await myPhotoAt(uid)) });
     }
     return pubGroup(gid, await loadGroup(gid, uid));
   },
@@ -225,7 +244,7 @@ export const DB = {
     if (!snap.exists()) {
       await setDoc(ref, {
         name: 'Just me', code: '', createdBy: uid, createdAt: nowIso(), isSolo: true,
-        memberIds: [uid], members: { [uid]: { name: name, joinedAt: nowIso() } }
+        memberIds: [uid], members: { [uid]: memberEntry(name, await myPhotoAt(uid)) }
       });
     }
     return newSession(gid, uid, p.meal, p.date);
@@ -276,6 +295,37 @@ export const DB = {
     return { archived: !!p.archived };
   },
 
+  /* Profile photo: a small JPEG data URL made on the phone, or '' to remove it. */
+  async setAvatar(uid, name, p) {
+    const photo = String(p.photo || '');
+    const at = photo ? Date.now() : 0;
+    if (photo) {
+      if (!/^data:image\/jpeg;base64,/.test(photo) || photo.length > 140000) throw new Error('That photo is too large. Try another one.');
+      await setDoc(doc(db, 'avatars', uid), { photo: photo, updatedAt: at });
+    } else {
+      try { await deleteDoc(doc(db, 'avatars', uid)); } catch (e) {}
+    }
+    await setDoc(doc(db, 'users', uid), { photoAt: at }, { merge: true });
+    const groups = await myGroups(uid);
+    await Promise.all(groups.map(function (x) {
+      return updateDoc(doc(db, 'groups', x.id), { ['members.' + uid + '.photoAt']: at });
+    }));
+    return { photoAt: at };
+  },
+
+  /* Fetch photos for a list of user ids. Returns {uid: {photo, at}}. */
+  async avatars(uid, name, p) {
+    const ids = (Array.isArray(p.ids) ? p.ids : []).slice(0, 60);
+    const out = {};
+    await Promise.all(ids.map(async function (id) {
+      try {
+        const s = await getDoc(doc(db, 'avatars', id));
+        out[id] = s.exists() ? { photo: s.data().photo, at: s.data().updatedAt || 0 } : { photo: '', at: 0 };
+      } catch (e) {}
+    }));
+    return out;
+  },
+
   async archived(uid) {
     const both = await Promise.all([myGroups(uid), myArchives(uid)]);
     const groups = both[0], arch = both[1];
@@ -318,8 +368,9 @@ export function friendlyError(e) {
   const code = e && e.code;
   if (code === 'permission-denied') return new Error('You don\'t have access to that. Ask the group for its invite code.');
   if (code === 'unavailable') return new Error('Can\'t reach Forkcast right now. Check your connection.');
-  if (code === 'auth/operation-not-allowed' || code === 'auth/admin-restricted-operation') {
-    return new Error('Anonymous sign-in is turned off in Firebase. Run scripts/setup.sh again.');
+  if (code === 'auth/operation-not-allowed' || code === 'auth/admin-restricted-operation' || code === 'auth/configuration-not-found') {
+    return new Error('Sign-in isn\'t turned on in Firebase yet. In the Firebase console: Authentication > Sign-in method > Anonymous > Enable.');
   }
+  if (code === 'auth/network-request-failed') return new Error('Can\'t reach Forkcast right now. Check your connection.');
   return e instanceof Error ? e : new Error(String(e));
 }

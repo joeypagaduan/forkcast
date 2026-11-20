@@ -1,11 +1,11 @@
-# Forkcast HANDOFF (v2.0)
+# Forkcast HANDOFF (v2.0.1)
 
 Everything needed to run, fix, or rebuild Forkcast. This file is regenerated on every deploy, so the source below always matches what's live.
 
 | | |
 |---|---|
-| App | (set after setup) |
-| Repo | (set after setup) |
+| App | https://joeypagaduan.github.io/forkcast/ |
+| Repo | https://github.com/joeypagaduan/forkcast |
 | Firebase project | forkcast-bz89c (https://console.firebase.google.com/project/forkcast-bz89c) |
 | Created by | whathappened |
 
@@ -18,7 +18,8 @@ Everything needed to run, fix, or rebuild Forkcast. This file is regenerated on 
   - `codes/{CODE}` points an invite code to its group.
   - `sessions/{id}` holds the group, day, meal, label, and `submittedBy`.
   - `sessions/{id}/submissions/{uid}` holds each person's likes and dislikes.
-  - `users/{uid}` holds the person's name and archived sessions.
+  - `users/{uid}` holds the person's name, photo version, and archived sessions.
+  - `avatars/{uid}` holds the profile photo, a small JPEG of about 20 KB. Photos live in Firestore because Firebase Storage needs the paid Blaze plan.
 - **Security:** `firestore.rules`.
   - You only see groups you belong to.
   - You can only change your own name and membership.
@@ -47,6 +48,8 @@ Options: `FIREBASE_PROJECT=existing-id`, `REPO_NAME=name`, `FIRESTORE_LOCATION=n
 | Add a commit note | `bash scripts/deploy.sh -m "new foods"` |
 | Watch Pages publish | `gh run watch` |
 | Rebuild these docs | `node scripts/build-docs.mjs` |
+| Test Firebase sign-in | `bash scripts/check-auth.sh` |
+| Install an update zip | `cd ~ && unzip -o "$(ls -t /mnt/c/Users/*/Downloads/forkcast-v2*-update.zip \| head -1)" && cd forkcast-v2 && bash scripts/deploy.sh` |
 
 ## Making changes
 
@@ -59,7 +62,8 @@ Options: `FIREBASE_PROJECT=existing-id`, `REPO_NAME=name`, `FIRESTORE_LOCATION=n
 ## Troubleshooting
 
 - **"Forkcast isn't connected to Firebase yet":** `web/firebase-config.js` is empty. Run `bash scripts/setup.sh`.
-- **"Anonymous sign-in is turned off":** Firebase console > Authentication > Sign-in method > Anonymous > Enable. Or run `firebase deploy --only auth`.
+- **Check sign-in from WSL:** `bash scripts/check-auth.sh`.
+- **"Sign-in isn't turned on in Firebase yet" (raw error: auth/configuration-not-found):** Firebase console > Authentication > Sign-in method > Anonymous > Enable. Or run `firebase deploy --only auth`.
 - **"You don't have access to that":** the person isn't in the group. Have them use the invite code or QR. If it happens to everyone, the rules didn't publish: `firebase deploy --only firestore`.
 - **Firestore asks for an index:** the error message includes a link that creates it. Or run `firebase deploy --only firestore:indexes`.
 - **Firebase sign-in from WSL doesn't open a browser:** `firebase login --no-localhost`, or `sudo apt install wslu && export BROWSER=wslview`.
@@ -67,6 +71,12 @@ Options: `FIREBASE_PROJECT=existing-id`, `REPO_NAME=name`, `FIRESTORE_LOCATION=n
 - **Downloads folder not found:** if Windows keeps Downloads in OneDrive, use the full path, for example `/mnt/c/Users/<you>/OneDrive/Downloads/forkcast-v2.0.zip`.
 
 ## Version log
+
+### 2.0.1 (November 20, 2026)
+- Profile photos: take a selfie or upload one in Settings > Profile; it shows in your groups and results
+- Full screen on phones and tablets, and it stays that way (change it in Settings > Look)
+- Bigger, bolder back arrow
+- Clearer message when Firebase sign-in isn't set up yet
 
 ### 2.0 (November 19, 2026)
 - Rebuilt on Firebase: everything loads faster and works through spotty connections
@@ -96,7 +106,7 @@ Options: `FIREBASE_PROJECT=existing-id`, `REPO_NAME=name`, `FIRESTORE_LOCATION=n
 
 ## Full source
 
-Icons (web/*.png) aren't included as text. Everything else needed to rebuild Forkcast v2.0 is below.
+Icons (web/*.png) aren't included as text. Everything else needed to rebuild Forkcast v2.0.1 is below.
 
 ### web/index.html
 
@@ -109,6 +119,7 @@ Icons (web/*.png) aren't included as text. Everything else needed to rebuild For
 <title>Forkcast</title>
 <meta name="theme-color" content="#FF5A5F">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Forkcast">
 <link rel="manifest" href="manifest.webmanifest">
@@ -134,7 +145,20 @@ body{background:var(--bg);color:var(--text);font-family:ui-rounded,"SF Pro Round
   min-height:100vh;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
 button{font:inherit;color:inherit;cursor:pointer}
 button:disabled{opacity:.35;cursor:default}
-.wrap{max-width:480px;margin:0 auto;padding:14px 16px 40px;min-height:100vh;display:flex;flex-direction:column}
+.wrap{max-width:480px;margin:0 auto;padding:max(14px,env(safe-area-inset-top)) 16px max(40px,calc(env(safe-area-inset-bottom) + 24px));min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
+.back-btn{width:44px;height:44px;flex:none;border:none;background:none;padding:0;margin-left:-6px;display:grid;place-items:center;color:var(--text);border-radius:12px}
+.back-btn svg{width:32px;height:32px}
+.back-btn:active{background:var(--surface2)}
+.me-btn{border:none;background:none;padding:0;flex:none;border-radius:50%}
+.av{--s:32px;width:var(--s);height:var(--s);border-radius:50%;flex:none;display:inline-grid;place-items:center;overflow:hidden;
+  color:#fff;font-weight:900;font-size:calc(var(--s) * .4);line-height:1;letter-spacing:.02em;vertical-align:middle}
+.av img{width:100%;height:100%;object-fit:cover;display:block}
+.me-btn .av{box-shadow:0 0 0 3px var(--surface),var(--shadow)}
+.pchip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px 4px 4px}
+.pf{display:flex;align-items:center;gap:16px;margin-bottom:18px}
+.pf .av{box-shadow:var(--shadow)}
+.pf-btns{display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.pf-btns label{cursor:pointer}
 .center{justify-content:center;text-align:center;gap:14px}
 .topbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;min-height:44px}
 .topbar h1{flex:1;font-size:1.15rem;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -250,7 +274,7 @@ h2{font-size:1.35rem;font-weight:800;line-height:1.2;margin-bottom:12px}
 
 /* Modal, toast, busy bar */
 #modal-root .back{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:50;animation:fade .2s}
-#modal-root .sheet{background:var(--bg);width:100%;max-width:480px;border-radius:24px 24px 0 0;padding:20px 18px 28px;max-height:90vh;overflow:auto;animation:up .25s ease-out}
+#modal-root .sheet{background:var(--bg);width:100%;max-width:480px;border-radius:24px 24px 0 0;padding:20px 18px max(28px,calc(env(safe-area-inset-bottom) + 16px));max-height:90vh;overflow:auto;animation:up .25s ease-out}
 @keyframes fade{from{opacity:0}} @keyframes up{from{transform:translateY(40px);opacity:0}}
 /* Swipe-to-archive rows */
 .srow{position:relative;margin-bottom:10px;border-radius:16px;overflow:hidden;transition:height .25s,margin .25s,opacity .25s}
@@ -311,9 +335,13 @@ import { DB, ready, configured, watchResults, friendlyError } from './data.js';
 
 /* ============ Food catalog ============
    [id, name, meals (B L D S), style, main emoji, accent 1, accent 2, blurb] */
-const APP_VERSION = '2.0';
+const APP_VERSION = '2.0.1';
 const APP_CREDIT = 'whathappened';
 const CHANGELOG = [
+  ['2.0.1', ['Profile photos: take a selfie or upload one in Settings > Profile; it shows in your groups and results',
+             'Full screen on phones and tablets, and it stays that way (change it in Settings > Look)',
+             'Bigger, bolder back arrow',
+             'Clearer message when Firebase sign-in isn\'t set up yet'], '2026-11-20'],
   ['2.0', ['Rebuilt on Firebase: everything loads faster and works through spotty connections',
            'Live results: matches appear the moment anyone submits, no refreshing',
            'No sign-up: each phone gets its own private ID automatically',
@@ -636,7 +664,7 @@ if (!user) {
   try { const old = JSON.parse(localStorage.getItem('fc_user') || 'null'); if (old && old.name) user.name = old.name; } catch (e) {}
   store.set('user', user);
 }
-let settings = Object.assign({ theme:'system', accent:ACCENTS[0], size:'normal', motion:'on', archiveConfirm:'ask', mapsApp:'google' }, store.get('settings', {}));
+let settings = Object.assign({ theme:'system', accent:ACCENTS[0], size:'normal', motion:'on', archiveConfirm:'ask', mapsApp:'google', fullscreen:'auto' }, store.get('settings', {}));
 const darkMq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
 function applySettings() {
   const r = document.documentElement;
@@ -654,7 +682,7 @@ const reduced = function () { return settings.motion === 'off'; };
 let busy = 0;
 function setBusy(d) { busy = Math.max(0, busy + d); $('#bar').classList.toggle('on', busy > 0); }
 /* All data goes through data.js (Firebase). */
-const WRITES = ['createGroup', 'joinGroup', 'createSession', 'solo', 'submit', 'rename', 'leaveGroup', 'setArchive'];
+const WRITES = ['createGroup', 'joinGroup', 'createSession', 'solo', 'submit', 'rename', 'leaveGroup', 'setArchive', 'setAvatar'];
 function call(action, payload, quiet) {
   if (!configured) return Promise.reject(new Error('Forkcast isn\'t connected to Firebase yet. Run scripts/setup.sh.'));
   if (WRITES.indexOf(action) >= 0) dropCache('');
@@ -701,14 +729,114 @@ function toast(msg, actLabel, actFn) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(function () { t.classList.remove('show', 'has-act'); }, actLabel ? 5000 : 2800);
 }
+/* ============ Profile photos ============ */
+const AV = store.get('avatars', {});               // uid -> { photo, at }
+function saveAV() { store.set('avatars', AV); }
+function initials(n) {
+  const parts = String(n || '?').trim().split(/\s+/);
+  return ((parts[0] || '?')[0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+}
+function avColor(id) {
+  let h = 0; const t = String(id || 'x');
+  for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) % 360;
+  return 'hsl(' + h + ' 55% 52%)';
+}
+function avatar(uid, name, photoAt, size) {
+  const a = AV[uid];
+  const has = a && a.photo && (!photoAt || a.at >= photoAt);
+  return '<span class="av" data-av="' + esc(uid || '') + '" data-at="' + (photoAt || 0) + '" style="--s:' + size + 'px;background:' + avColor(uid) + '">' +
+    (has ? '<img src="' + a.photo + '" alt="">' : esc(initials(name))) + '</span>';
+}
+function paintAvatars() {
+  document.querySelectorAll('.av[data-av]').forEach(function (el) {
+    const a = AV[el.dataset.av];
+    if (a && a.photo && !el.querySelector('img')) el.innerHTML = '<img src="' + a.photo + '" alt="">';
+  });
+}
+function hydrateAvatars() {
+  const need = {};
+  document.querySelectorAll('.av[data-av]').forEach(function (el) {
+    const id = el.dataset.av, at = Number(el.dataset.at) || 0, a = AV[id];
+    if (id && at && (!a || a.at < at)) need[id] = true;
+  });
+  paintAvatars();
+  const ids = Object.keys(need);
+  if (!ids.length) return;
+  call('avatars', { ids: ids }, true).then(function (res) {
+    Object.keys(res).forEach(function (id) { AV[id] = res[id]; });
+    saveAV(); paintAvatars();
+  }).catch(function () {});
+}
+/* Square-crop and shrink a photo on the phone before upload (about 20 KB). */
+function makeAvatar(file) {
+  return new Promise(function (resolve, reject) {
+    if (!file || !/^image\//.test(file.type || 'image/')) { reject(new Error('Pick a photo.')); return; }
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = function () {
+      const S = 192, c = document.createElement('canvas'); c.width = c.height = S;
+      const m = Math.min(img.naturalWidth, img.naturalHeight);
+      c.getContext('2d').drawImage(img, (img.naturalWidth - m) / 2, (img.naturalHeight - m) / 2, m, m, 0, 0, S, S);
+      URL.revokeObjectURL(url);
+      let q = 0.82, out = c.toDataURL('image/jpeg', q);
+      while (out.length > 120000 && q > 0.4) { q -= 0.15; out = c.toDataURL('image/jpeg', q); }
+      resolve(out);
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('Couldn\'t read that photo. Try a JPG or PNG.')); };
+    img.src = url;
+  });
+}
+async function onPhotoPicked(e) {
+  const f = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!f) return;
+  try {
+    const photo = await makeAvatar(f);
+    const r = await call('setAvatar', { photo: photo });
+    user.photoAt = r.photoAt; store.set('user', user);
+    AV[user.id] = { photo: photo, at: r.photoAt }; saveAV();
+    toast('Photo saved');
+    S.needsRefresh = true;
+    showSettingsTab('profile');
+  } catch (err) { toast(err.message); }
+}
+
+/* ============ Full screen ============ */
+function fsActive() {
+  return !!(document.fullscreenElement || document.webkitFullscreenElement) ||
+    !!(window.matchMedia && matchMedia('(display-mode: fullscreen)').matches);
+}
+function wantFs() {
+  if (settings.fullscreen === 'off') return false;
+  if (settings.fullscreen === 'on') return true;
+  return !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);   // phones and tablets
+}
+function enterFs() {
+  if (!wantFs() || fsActive()) return;
+  const d = document.documentElement, fn = d.requestFullscreen || d.webkitRequestFullscreen;
+  if (!fn) return;   // iPhone Safari: use Add to Home Screen instead
+  try { const p = fn.call(d, { navigationUI: 'hide' }); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+}
+function exitFs() {
+  const fn = document.exitFullscreen || document.webkitExitFullscreen;
+  if ((document.fullscreenElement || document.webkitFullscreenElement) && fn) { try { const p = fn.call(document); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
+}
+// Browsers only allow full screen after a tap, so the first tap enters it and any later tap re-enters it
+// (for example after the Android back gesture or returning from Maps). Links and photo pickers are left alone.
+document.addEventListener('click', function (e) {
+  if (e.target.closest && e.target.closest('a[href], label, input, select, textarea')) return;
+  enterFs();
+}, true);
+
+const BACK_ARROW = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12H5"/><path d="M11 5l-7 7 7 7"/></svg>';
 function top(title, back, sub) {
   return '<div class="topbar">' +
-    (back ? '<button class="icon-btn" data-act="back" data-to="' + esc(back) + '" aria-label="Back">←</button>'
-          : '<div class="logo">🍴</div>') +
+    (back ? '<button class="back-btn" data-act="back" data-to="' + esc(back) + '" aria-label="Back">' + BACK_ARROW + '</button>'
+          : '<button class="me-btn" data-act="openProfile" aria-label="Your profile">' + avatar(user.id, user.name, user.photoAt || 0, 44) + '</button>') +
     '<h1>' + title + (sub ? '<span class="sub">' + sub + '</span>' : '') + '</h1>' +
     '<button class="icon-btn" data-act="settings" aria-label="Settings">⚙️</button></div>';
 }
-function shell(html) { app.innerHTML = '<div class="wrap">' + html + '</div>'; }
+function shell(html) { app.innerHTML = '<div class="wrap">' + html + '</div>'; setTimeout(hydrateAvatars, 0); }
 const segVals = {};
 function seg(name, options, selected) {
   segVals[name] = selected;
@@ -724,6 +852,7 @@ function modal(html, onMount) {
   const root = $('#modal-root');
   root.innerHTML = '<div class="back" data-act="closeModal"><div class="sheet" role="dialog">' + html + '</div></div>';
   if (onMount) onMount(root);
+  setTimeout(hydrateAvatars, 0);
 }
 function closeModal() {
   $('#modal-root').innerHTML = '';
@@ -816,7 +945,7 @@ function renderGroup(d) {
       '<div class="row"><button class="btn small" data-act="share">Share</button>' +
       '<button class="btn small ghost" data-act="copyLink">Copy link</button></div></div></div>' +
       '<div class="chips" style="margin-top:12px">' + d.members.map(function (m) {
-        return '<span class="chip">' + esc(m.name) + (m.userId === user.id ? ' (you)' : '') + '</span>';
+        return '<span class="chip pchip">' + avatar(m.userId, m.name, m.photoAt, 24) + esc(m.name) + (m.userId === user.id ? ' (you)' : '') + '</span>';
       }).join('') + '</div></div>';
   }
   html += '<div class="card"><div class="label">Start a new session</div>' + mealSeg('newMeal') +
@@ -1049,8 +1178,11 @@ function renderResults(d, isRefresh) {
     html += '<div class="card"><div class="row" style="justify-content:space-between;margin-bottom:10px"><div class="label" style="margin:0">' +
       d.submitters.length + ' of ' + (d.submitters.length + d.pending.length) + ' submitted</div>' +
       '<span class="chip ok">● Live</span></div><div class="chips">' +
+      (d.people ? d.people.map(function (p) {
+        return '<span class="chip pchip' + (p.done ? ' ok' : '') + '">' + avatar(p.userId, p.name, p.photoAt, 24) + (p.done ? '✓ ' : '⏳ ') + esc(p.name) + '</span>';
+      }).join('') :
       d.submitters.map(function (n) { return '<span class="chip ok">✓ ' + esc(n) + '</span>'; }).join('') +
-      d.pending.map(function (n) { return '<span class="chip">⏳ ' + esc(n) + '</span>'; }).join('') + '</div></div>';
+      d.pending.map(function (n) { return '<span class="chip">⏳ ' + esc(n) + '</span>'; }).join('')) + '</div></div>';
     if (d.submitters.length < 2) {
       html += '<div class="card" style="text-align:center"><div class="big-emoji">⏳</div><h2 style="margin:8px 0 4px">Waiting on the others</h2>' +
         '<p class="muted" style="font-weight:600">Matches show up here the moment someone else submits.</p></div>';
@@ -1176,6 +1308,13 @@ const ACT = {
       recipeLinks(f.id) + nearbyLinks(f.id) + '<button class="btn ghost" data-act="closeModal" style="margin-top:6px">Close</button>');
   },
   settings: function () { openSettings(); },
+  openProfile: function () { openSettings('profile'); },
+  removePhoto: async function () {
+    const r = await call('setAvatar', { photo: '' });
+    user.photoAt = r.photoAt; store.set('user', user);
+    AV[user.id] = { photo: '', at: 0 }; saveAV();
+    toast('Photo removed'); S.needsRefresh = true; showSettingsTab('profile');
+  },
   settingsTab: function (el) { showSettingsTab(el.dataset.tab); },
   openArchived: function () { openSettings('archived'); },
   openArchivedSession: function (el) {
@@ -1220,7 +1359,8 @@ const SETTING_SEGS = {
   theme: function (v) { settings.theme = v; store.set('settings', settings); applySettings(); },
   size: function (v) { settings.size = v; store.set('settings', settings); applySettings(); },
   motion: function (v) { settings.motion = v; store.set('settings', settings); applySettings(); },
-  maps: function (v) { settings.mapsApp = v; store.set('settings', settings); }
+  maps: function (v) { settings.mapsApp = v; store.set('settings', settings); },
+  fullscreen: function (v) { settings.fullscreen = v; store.set('settings', settings); if (wantFs()) enterFs(); else exitFs(); }
 };
 const SETTING_TABS = [
   { k:'profile', t:'Profile', e:'🙋' }, { k:'look', t:'Look', e:'🎨' },
@@ -1238,17 +1378,27 @@ function showSettingsTab(k) {
   document.querySelectorAll('.tabs button').forEach(function (b) { b.classList.toggle('on', b.dataset.tab === k); });
   const pane = $('#setpane'); if (!pane) return;
   if (k === 'profile') {
-    pane.innerHTML = '<div class="label">Your name</div>' +
+    const hasPhoto = !!(AV[user.id] && AV[user.id].photo);
+    pane.innerHTML = '<div class="label">Profile photo</div><div class="pf">' + avatar(user.id, S.pendingName || user.name, user.photoAt || 0, 96) +
+      '<div class="pf-btns">' +
+      '<label class="btn small">📷 Take photo<input type="file" accept="image/*" capture="user" hidden data-photo></label>' +
+      '<label class="btn small ghost">🖼️ Upload<input type="file" accept="image/*" hidden data-photo></label>' +
+      (hasPhoto ? '<button class="btn link small" data-act="removePhoto" style="padding:4px 2px">Remove photo</button>' : '') +
+      '</div></div>' +
+      '<div class="label">Your name</div>' +
       '<input class="field" id="setname" maxlength="30" value="' + esc(S.pendingName) + '">' +
       '<p class="hint-sm" style="margin-top:8px">This is what your groups see next to your picks.</p>';
     $('#setname').addEventListener('input', function (e) { S.pendingName = e.target.value; });
+    pane.querySelectorAll('input[data-photo]').forEach(function (inp) { inp.addEventListener('change', onPhotoPicked); });
   } else if (k === 'look') {
     pane.innerHTML = '<div class="label">Theme</div>' + seg('theme', [{ v:'light', t:'Light', e:'☀️' }, { v:'dark', t:'Dark', e:'🌙' }, { v:'system', t:'Auto', e:'🌓' }], settings.theme) +
       '<div class="label">Color</div><div class="swatches">' + ACCENTS.map(function (c) {
         return '<button class="sw' + (c === settings.accent ? ' on' : '') + '" style="background:' + c + '" data-act="accent" data-val="' + c + '" aria-label="Color ' + c + '"></button>';
       }).join('') + '</div>' +
       '<div class="label">Text size</div>' + seg('size', [{ v:'normal', t:'Regular' }, { v:'large', t:'Large' }], settings.size) +
-      '<div class="label">Animations</div>' + seg('motion', [{ v:'on', t:'On' }, { v:'off', t:'Off' }], settings.motion);
+      '<div class="label">Animations</div>' + seg('motion', [{ v:'on', t:'On' }, { v:'off', t:'Off' }], settings.motion) +
+      '<div class="label">Full screen</div>' + seg('fullscreen', [{ v:'auto', t:'Phones & tablets' }, { v:'on', t:'Always' }, { v:'off', t:'Off' }], settings.fullscreen) +
+      '<p class="hint-sm">Hides the browser bars after your first tap. On iPhone, add Forkcast to your home screen for full screen.</p>';
   } else if (k === 'sessions') {
     const opt = function (v, t, sub) {
       return '<button class="opt' + (settings.archiveConfirm === v ? ' on' : '') + '" data-act="archiveMode" data-val="' + v + '">' +
@@ -1341,13 +1491,15 @@ else go('home');
  *   codes/{CODE}            groupId, createdBy            (invite codes; readable one at a time, never listed)
  *   sessions/{sessionId}    groupId, date, meal, snackNum, label, createdBy, createdAt, submittedBy[]
  *   sessions/{id}/submissions/{uid}   name, likes[], dislikes[], submittedAt
- *   users/{uid}             name, archives{sessionId: 'archived'|'active'}
+ *   users/{uid}             name, photoAt, archives{sessionId: 'archived'|'active'}
+ *   avatars/{uid}           photo (small JPEG data URL, ~20 KB), updatedAt
+ *                           members{uid:{..., photoAt}} tells others when to refetch a photo
  */
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js';
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-  doc, collection, getDoc, getDocs, setDoc, updateDoc, writeBatch, query, where, orderBy, limit,
+  doc, collection, getDoc, getDocs, setDoc, updateDoc, deleteDoc, writeBatch, query, where, orderBy, limit,
   arrayUnion, arrayRemove, deleteField, onSnapshot, getCountFromServer
 } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js';
 
@@ -1398,7 +1550,10 @@ function pubSession(id, s) {
 }
 function membersOf(g) {
   const m = g.members || {};
-  return Object.keys(m).map(function (uid) { return { userId: uid, name: (m[uid] && m[uid].name) || 'Guest', joinedAt: (m[uid] && m[uid].joinedAt) || '' }; })
+  return Object.keys(m).map(function (uid) {
+    const x = m[uid] || {};
+    return { userId: uid, name: x.name || 'Guest', joinedAt: x.joinedAt || '', photoAt: x.photoAt || 0 };
+  })
     .sort(function (a, b) { return a.joinedAt.localeCompare(b.joinedAt); });
 }
 function sortSessions(a, b) {
@@ -1408,6 +1563,14 @@ function isArchived(s, arch) {
   if (arch[s.id]) return arch[s.id] === 'archived';
   const t = Date.parse(s.createdAt);
   return !isNaN(t) && (Date.now() - t) > AUTO_ARCHIVE_MS;
+}
+async function myPhotoAt(uid) {
+  try { const s = await getDoc(doc(db, 'users', uid)); return (s.exists() && s.data().photoAt) || 0; } catch (e) { return 0; }
+}
+function memberEntry(name, photoAt) {
+  const e = { name: name, joinedAt: nowIso() };
+  if (photoAt) e.photoAt = photoAt;
+  return e;
 }
 async function myArchives(uid) {
   const snap = await getDoc(doc(db, 'users', uid));
@@ -1464,11 +1627,16 @@ function computeResults(uid, s, g, subsDocs) {
     .sort(function (a, b) { return b.count - a.count; });
   const done = {};
   subs.forEach(function (x) { done[x.userId] = true; });
+  const photoOf = {};
+  members.forEach(function (m) { photoOf[m.userId] = m.photoAt; });
+  const waiting = members.filter(function (m) { return !done[m.userId]; });
   return {
     session: pubSession(s.id, s),
     group: pubGroup(s.groupId, g),
     submitters: subs.map(function (x) { return x.name; }),
-    pending: members.filter(function (m) { return !done[m.userId]; }).map(function (m) { return m.name; }),
+    pending: waiting.map(function (m) { return m.name; }),
+    people: subs.map(function (x) { return { userId: x.userId, name: x.name, photoAt: photoOf[x.userId] || 0, done: true }; })
+      .concat(waiting.map(function (m) { return { userId: m.userId, name: m.name, photoAt: m.photoAt, done: false }; })),
     matches: tally.filter(function (t) { return t.count === subs.length; }).map(function (t) { return t.id; }),
     tally: tally,
     myLikes: mine.likes
@@ -1498,12 +1666,13 @@ export const DB = {
   async createGroup(uid, name, p) {
     const groupName = String(p.groupName || '').replace(/[<>]/g, '').trim().slice(0, 40);
     if (!groupName) throw new Error('Give your group a name.');
+    const photoAt = await myPhotoAt(uid);
     for (let attempt = 0; attempt < 5; attempt++) {
       const ref = doc(collection(db, 'groups'));
       const code = newCode();
       const g = {
         name: groupName, code: code, createdBy: uid, createdAt: nowIso(), isSolo: false,
-        memberIds: [uid], members: { [uid]: { name: name, joinedAt: nowIso() } }
+        memberIds: [uid], members: { [uid]: memberEntry(name, photoAt) }
       };
       const batch = writeBatch(db);
       batch.set(ref, g);
@@ -1526,7 +1695,7 @@ export const DB = {
     if (already) {
       if (((already.members || {})[uid] || {}).name !== name) await updateDoc(ref, { ['members.' + uid + '.name']: name });
     } else {
-      await updateDoc(ref, { memberIds: arrayUnion(uid), ['members.' + uid]: { name: name, joinedAt: nowIso() } });
+      await updateDoc(ref, { memberIds: arrayUnion(uid), ['members.' + uid]: memberEntry(name, await myPhotoAt(uid)) });
     }
     return pubGroup(gid, await loadGroup(gid, uid));
   },
@@ -1558,7 +1727,7 @@ export const DB = {
     if (!snap.exists()) {
       await setDoc(ref, {
         name: 'Just me', code: '', createdBy: uid, createdAt: nowIso(), isSolo: true,
-        memberIds: [uid], members: { [uid]: { name: name, joinedAt: nowIso() } }
+        memberIds: [uid], members: { [uid]: memberEntry(name, await myPhotoAt(uid)) }
       });
     }
     return newSession(gid, uid, p.meal, p.date);
@@ -1609,6 +1778,37 @@ export const DB = {
     return { archived: !!p.archived };
   },
 
+  /* Profile photo: a small JPEG data URL made on the phone, or '' to remove it. */
+  async setAvatar(uid, name, p) {
+    const photo = String(p.photo || '');
+    const at = photo ? Date.now() : 0;
+    if (photo) {
+      if (!/^data:image\/jpeg;base64,/.test(photo) || photo.length > 140000) throw new Error('That photo is too large. Try another one.');
+      await setDoc(doc(db, 'avatars', uid), { photo: photo, updatedAt: at });
+    } else {
+      try { await deleteDoc(doc(db, 'avatars', uid)); } catch (e) {}
+    }
+    await setDoc(doc(db, 'users', uid), { photoAt: at }, { merge: true });
+    const groups = await myGroups(uid);
+    await Promise.all(groups.map(function (x) {
+      return updateDoc(doc(db, 'groups', x.id), { ['members.' + uid + '.photoAt']: at });
+    }));
+    return { photoAt: at };
+  },
+
+  /* Fetch photos for a list of user ids. Returns {uid: {photo, at}}. */
+  async avatars(uid, name, p) {
+    const ids = (Array.isArray(p.ids) ? p.ids : []).slice(0, 60);
+    const out = {};
+    await Promise.all(ids.map(async function (id) {
+      try {
+        const s = await getDoc(doc(db, 'avatars', id));
+        out[id] = s.exists() ? { photo: s.data().photo, at: s.data().updatedAt || 0 } : { photo: '', at: 0 };
+      } catch (e) {}
+    }));
+    return out;
+  },
+
   async archived(uid) {
     const both = await Promise.all([myGroups(uid), myArchives(uid)]);
     const groups = both[0], arch = both[1];
@@ -1651,9 +1851,10 @@ export function friendlyError(e) {
   const code = e && e.code;
   if (code === 'permission-denied') return new Error('You don\'t have access to that. Ask the group for its invite code.');
   if (code === 'unavailable') return new Error('Can\'t reach Forkcast right now. Check your connection.');
-  if (code === 'auth/operation-not-allowed' || code === 'auth/admin-restricted-operation') {
-    return new Error('Anonymous sign-in is turned off in Firebase. Run scripts/setup.sh again.');
+  if (code === 'auth/operation-not-allowed' || code === 'auth/admin-restricted-operation' || code === 'auth/configuration-not-found') {
+    return new Error('Sign-in isn\'t turned on in Firebase yet. In the Firebase console: Authentication > Sign-in method > Anonymous > Enable.');
   }
+  if (code === 'auth/network-request-failed') return new Error('Can\'t reach Forkcast right now. Check your connection.');
   return e instanceof Error ? e : new Error(String(e));
 }
 ````
@@ -1675,13 +1876,30 @@ window.FORKCAST_FIREBASE = {"projectId":"forkcast-bz89c","appId":"1:713672234916
   "description": "Swipe to decide what to eat, solo or with your group.",
   "start_url": "./",
   "scope": "./",
-  "display": "standalone",
+  "display": "fullscreen",
   "background_color": "#FFF8F2",
   "theme_color": "#FF5A5F",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "display_override": [
+    "fullscreen",
+    "standalone"
   ]
 }
 ````
@@ -1771,7 +1989,19 @@ service cloud.firestore {
       }
     }
 
-    // Your own profile: name and which sessions you archived.
+    // Profile photos: small JPEGs. Anyone signed in can view one if they know the person's id
+    // (ids are only visible inside groups). Only you can change or remove yours.
+    match /avatars/{uid} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && uid == me()
+        && request.resource.data.photo is string
+        && request.resource.data.photo.size() < 140000
+        && request.resource.data.photo.matches('data:image/jpeg;base64,[A-Za-z0-9+/=]+')
+        && request.resource.data.updatedAt is int;
+      allow delete: if signedIn() && uid == me();
+    }
+
+    // Your own profile: name, photo version, and which sessions you archived.
     match /users/{uid} {
       allow read, write: if signedIn() && uid == me();
     }
@@ -1969,6 +2199,11 @@ cat > web/firebase-config.js <<EOF
 window.FORKCAST_FIREBASE = $CONFIG_JSON;
 EOF
 info "Saved web/firebase-config.js"
+info "Checking that sign-in works..."
+until bash scripts/check-auth.sh; do
+  info "Do the fix above in your browser, then press Enter to check again (or Ctrl+C to stop)."
+  pause
+done
 
 # ---------- 6. GitHub ----------
 bold "6/6  Publishing on GitHub Pages"
@@ -2034,6 +2269,7 @@ done
 
 VERSION="$(grep -oE "APP_VERSION = '[^']+'" web/index.html | grep -oE "[0-9][0-9.]*")"
 echo "Deploying Forkcast v$VERSION"
+bash scripts/check-auth.sh || echo "  (Publishing anyway. The app won't load data until sign-in is fixed.)"
 
 if [ "$WEB_ONLY" = "0" ]; then
   echo "  Publishing security rules and indexes..."
@@ -2066,6 +2302,30 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PORT="${PORT:-8080}"
 echo "Forkcast preview: http://localhost:$PORT   (Ctrl+C to stop)"
 python3 -m http.server "$PORT" --directory "$ROOT/web"
+````
+
+### scripts/check-auth.sh
+
+````bash
+#!/usr/bin/env bash
+# Confirms Firebase anonymous sign-in works for this app (used by setup.sh and deploy.sh).
+# Exits 0 if it works, 1 if not, with the exact console link to fix it.
+set -uo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+KEY="$(node -e 'const s=require("fs").readFileSync(process.argv[1],"utf8");const m=s.match(/"apiKey"\s*:\s*"([^"]+)"/);process.stdout.write(m?m[1]:"")' "$ROOT/web/firebase-config.js")"
+PROJECT="$(node -e 'const s=require("fs").readFileSync(process.argv[1],"utf8");const m=s.match(/"projectId"\s*:\s*"([^"]+)"/);process.stdout.write(m?m[1]:"")' "$ROOT/web/firebase-config.js")"
+if [ -z "$KEY" ]; then echo "  web/firebase-config.js is empty. Run: bash scripts/setup.sh"; exit 1; fi
+RES="$(curl -s --max-time 20 -X POST "https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=$KEY" \
+  -H 'Content-Type: application/json' -d '{"returnSecureToken":true}')"
+if printf '%s' "$RES" | grep -q '"idToken"'; then
+  echo "  Sign-in check: OK"
+  exit 0
+fi
+REASON="$(printf '%s' "$RES" | grep -oE '"message": *"[^"]+"' | head -1 | sed 's/.*: *"//;s/"$//')"
+echo "  Sign-in check FAILED (${REASON:-no answer})."
+echo "  Fix: open https://console.firebase.google.com/project/$PROJECT/authentication/providers"
+echo "       click Get started if you see it, then Anonymous > Enable > Save."
+exit 1
 ````
 
 ### scripts/build-docs.mjs
@@ -2114,7 +2374,7 @@ ${log}
 // ---------- HANDOFF.md (rebuild guide + full source) ----------
 const files = ['web/index.html', 'web/data.js', 'web/firebase-config.js', 'web/manifest.webmanifest',
   'firestore.rules', 'firestore.indexes.json', 'firebase.json', '.github/workflows/pages.yml',
-  'scripts/setup.sh', 'scripts/deploy.sh', 'scripts/dev.sh', 'scripts/build-docs.mjs'];
+  'scripts/setup.sh', 'scripts/deploy.sh', 'scripts/dev.sh', 'scripts/check-auth.sh', 'scripts/build-docs.mjs'];
 const lang = (f) => ({ html: 'html', js: 'js', mjs: 'js', json: 'json', webmanifest: 'json', rules: 'js', yml: 'yaml', sh: 'bash' })[f.split('.').pop()] || '';
 const intro = read('scripts/handoff-intro.md')
   .replaceAll('{{VERSION}}', version)

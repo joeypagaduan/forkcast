@@ -115,6 +115,11 @@ cat > web/firebase-config.js <<EOF
 window.FORKCAST_FIREBASE = $CONFIG_JSON;
 EOF
 info "Saved web/firebase-config.js"
+info "Checking that sign-in works..."
+until bash scripts/check-auth.sh; do
+  info "Do the fix above in your browser, then press Enter to check again (or Ctrl+C to stop)."
+  pause
+done
 
 # ---------- 6. GitHub ----------
 bold "6/6  Publishing on GitHub Pages"

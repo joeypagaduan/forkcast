@@ -21,6 +21,7 @@ done
 
 VERSION="$(grep -oE "APP_VERSION = '[^']+'" web/index.html | grep -oE "[0-9][0-9.]*")"
 echo "Deploying Forkcast v$VERSION"
+bash scripts/check-auth.sh || echo "  (Publishing anyway. The app won't load data until sign-in is fixed.)"
 
 if [ "$WEB_ONLY" = "0" ]; then
   echo "  Publishing security rules and indexes..."

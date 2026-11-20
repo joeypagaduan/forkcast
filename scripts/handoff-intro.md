@@ -18,7 +18,8 @@ Everything needed to run, fix, or rebuild Forkcast. This file is regenerated on 
   - `codes/{CODE}` points an invite code to its group.
   - `sessions/{id}` holds the group, day, meal, label, and `submittedBy`.
   - `sessions/{id}/submissions/{uid}` holds each person's likes and dislikes.
-  - `users/{uid}` holds the person's name and archived sessions.
+  - `users/{uid}` holds the person's name, photo version, and archived sessions.
+  - `avatars/{uid}` holds the profile photo, a small JPEG of about 20 KB. Photos live in Firestore because Firebase Storage needs the paid Blaze plan.
 - **Security:** `firestore.rules`.
   - You only see groups you belong to.
   - You can only change your own name and membership.
@@ -47,6 +48,8 @@ Options: `FIREBASE_PROJECT=existing-id`, `REPO_NAME=name`, `FIRESTORE_LOCATION=n
 | Add a commit note | `bash scripts/deploy.sh -m "new foods"` |
 | Watch Pages publish | `gh run watch` |
 | Rebuild these docs | `node scripts/build-docs.mjs` |
+| Test Firebase sign-in | `bash scripts/check-auth.sh` |
+| Install an update zip | `cd ~ && unzip -o "$(ls -t /mnt/c/Users/*/Downloads/forkcast-v2*-update.zip \| head -1)" && cd forkcast-v2 && bash scripts/deploy.sh` |
 
 ## Making changes
 
@@ -59,7 +62,8 @@ Options: `FIREBASE_PROJECT=existing-id`, `REPO_NAME=name`, `FIRESTORE_LOCATION=n
 ## Troubleshooting
 
 - **"Forkcast isn't connected to Firebase yet":** `web/firebase-config.js` is empty. Run `bash scripts/setup.sh`.
-- **"Anonymous sign-in is turned off":** Firebase console > Authentication > Sign-in method > Anonymous > Enable. Or run `firebase deploy --only auth`.
+- **Check sign-in from WSL:** `bash scripts/check-auth.sh`.
+- **"Sign-in isn't turned on in Firebase yet" (raw error: auth/configuration-not-found):** Firebase console > Authentication > Sign-in method > Anonymous > Enable. Or run `firebase deploy --only auth`.
 - **"You don't have access to that":** the person isn't in the group. Have them use the invite code or QR. If it happens to everyone, the rules didn't publish: `firebase deploy --only firestore`.
 - **Firestore asks for an index:** the error message includes a link that creates it. Or run `firebase deploy --only firestore:indexes`.
 - **Firebase sign-in from WSL doesn't open a browser:** `firebase login --no-localhost`, or `sudo apt install wslu && export BROWSER=wslview`.

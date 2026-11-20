@@ -1,0 +1,88 @@
+rules_version = '2';
+
+// Forkcast 2.0 security rules.
+// Everyone signs in anonymously. You can only see groups you belong to,
+// sessions in those groups, and other people's picks after you've submitted your own.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
+    function groupOf(gid) { return get(/databases/$(database)/documents/groups/$(gid)).data; }
+    function isMember(gid) { return signedIn() && me() in groupOf(gid).memberIds; }
+    // True when the only id added to or removed from a list is your own.
+    function onlyMeChanged(before, after) {
+      return after.toSet().difference(before.toSet())
+        .union(before.toSet().difference(after.toSet()))
+        .hasOnly([me()]);
+    }
+
+    match /groups/{gid} {
+      allow get: if signedIn() && (resource == null || me() in resource.data.memberIds);
+      allow list: if signedIn() && me() in resource.data.memberIds;
+
+      allow create: if signedIn()
+        && request.resource.data.createdBy == me()
+        && request.resource.data.memberIds == [me()]
+        && request.resource.data.members.keys().hasOnly([me()])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 40
+        && ((gid == 'solo_' + me() && request.resource.data.isSolo == true)
+            || (gid != 'solo_' + me() && request.resource.data.isSolo == false));
+
+      // Join, leave, or rename yourself. Nobody can change anyone else's entry.
+      allow update: if signedIn()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberIds', 'members'])
+        && onlyMeChanged(resource.data.memberIds, request.resource.data.memberIds)
+        && request.resource.data.members.diff(resource.data.members).affectedKeys().hasOnly([me()])
+        && (resource.data.isSolo != true || resource.data.createdBy == me());
+
+      allow delete: if false;
+    }
+
+    // Invite codes: look one up if you know it; nobody can list them.
+    match /codes/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
+        && request.resource.data.createdBy == me()
+        && getAfter(/databases/$(database)/documents/groups/$(request.resource.data.groupId)).data.createdBy == me()
+        && getAfter(/databases/$(database)/documents/groups/$(request.resource.data.groupId)).data.code == code;
+      allow update, delete: if false;
+    }
+
+    match /sessions/{sid} {
+      allow get: if signedIn() && (resource == null || isMember(resource.data.groupId));
+      allow list: if isMember(resource.data.groupId);
+
+      allow create: if isMember(request.resource.data.groupId)
+        && request.resource.data.createdBy == me()
+        && request.resource.data.submittedBy == []
+        && request.resource.data.meal in ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
+
+      // The only change allowed: marking yourself as submitted.
+      allow update: if isMember(resource.data.groupId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['submittedBy'])
+        && onlyMeChanged(resource.data.submittedBy, request.resource.data.submittedBy);
+
+      allow delete: if false;
+
+      match /submissions/{uid} {
+        // See everyone's picks only after you've submitted yours.
+        allow read: if isMember(get(/databases/$(database)/documents/sessions/$(sid)).data.groupId)
+          && exists(/databases/$(database)/documents/sessions/$(sid)/submissions/$(me()));
+        allow create, update: if signedIn() && uid == me()
+          && isMember(get(/databases/$(database)/documents/sessions/$(sid)).data.groupId)
+          && request.resource.data.likes is list && request.resource.data.likes.size() <= 300
+          && request.resource.data.dislikes is list && request.resource.data.dislikes.size() <= 300;
+        allow delete: if false;
+      }
+    }
+
+    // Your own profile: name and which sessions you archived.
+    match /users/{uid} {
+      allow read, write: if signedIn() && uid == me();
+    }
+  }
+}
